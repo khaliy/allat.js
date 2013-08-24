@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<project basedir="." default="compile">
+
+    <taskdef name="jsmin"
+             classname="net.matthaynes.jsmin.JSMin_Task"
+             classpath="${basedir}/build/jsmin/jsmin.0.2.4.jar"/>
+
+    <taskdef name="jslint"
+             classname="com.googlecode.jslint4java.ant.JSLintTask"
+             classpath="${basedir}/build/jslint/jslint4java-2.0.5.jar" />
+
+    <target name="check-js">
+        <jslint options="sloppy,nomen,plusplus,browser">
+            <formatter type="plain" />
+            <fileset dir="js" includes="**/*.js" excludes="lib/**/*.js" />
+        </jslint>
+    </target>
+
+    <target name="concat-js" depends="check-js">
+        <concat destfile="allat.js" encoding="UTF-8" outputencoding="UTF-8" fixlastline="true">
+            <filelist id="jsfiles" dir="js" files="config.js,util.js,bootstrap.js" />
+            <fileset dir="js" includes="modules/*.js" />
+        </concat>
+    </target>
+
+    <target name="compile" depends="concat-js">
+        <tstamp>
+            <format property="time" pattern="yyyy/MM/dd hh:mm aa" locale="en" />
+        </tstamp>
+        <jsmin srcfile="${basedir}/allat.js" suffix="true" copyright="(c) 2013 MIT license author: tszebeni.hu ${time}" />
+        <!--delete file="${basedir}/allat.js" / -->
+    </target>
+</project>
