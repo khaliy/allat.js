@@ -8,7 +8,7 @@ test("EventBus exist", function() {
     equal(EventBus.getName(), "EventBus", "Its an EventBus");
 });
 test("Producer and Consumer", function () {
-    Allat.module.define("producer", {
+    Allat.module.define("Producer", {
         factory: function (producer) {
             producer.counter = 0;
             producer.produce = function () {
