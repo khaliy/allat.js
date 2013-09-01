@@ -1,12 +1,24 @@
 /*global Allat */
 (function (Allat) {
     Allat.module.define("PropertyBindSupport", {
-        factory: function (PropertyBindSupport) {
-            PropertyBindSupport.init = function() {
+        factory: function (propertyBindSupport) {
+            propertyBindSupport.init = function() {
+                var p = Allat.util.proxy;
+                this.dictionary = {};
+                this.parsePage();
+                /*jslint unparam: true*/
+                this.services.EventBus.subscribe("property.set", p(function (event, data) {
+                    if (this.resolve(data.key)) {
+                        this.update(data.key, data.value);
+                    }
+                }, this));
+                /*jslint unparam: false*/
+            };
+            propertyBindSupport.parsePage = function () {
                 var template, i, boundTo, key, p = Allat.util.proxy,
                     createChangeHandler = p(function(key, template) {
                         return p(function (e) {
-                            var value = e.target.value;
+                            var value = Allat.util.escape(e.target.value);
                             this.dictionary[key] = {
                                 template: template,
                                 boundTo: e.target,
@@ -19,7 +31,6 @@
                             });
                         }, this);
                     }, this);
-                this.dictionary = {};
                 this.templates = document.getElementsByClassName("bind");
                 for (i = 0; i < this.templates.length; i++) {
                     template = this.templates[i];
@@ -33,18 +44,11 @@
                         });
                     }
                 }
-                /*jslint unparam: true*/
-                this.services.EventBus.subscribe("property.set", p(function (event, data) {
-                    if (this.resolve(data.key)) {
-                        this.update(data.key, data.value);
-                    }
-                }, this));
-                /*jslint unparam: false*/
             };
-            PropertyBindSupport.resolve = function (key) {
+            propertyBindSupport.resolve = function (key) {
                 return this.dictionary[key].value;
             };
-            PropertyBindSupport.update = function (key, value) {
+            propertyBindSupport.update = function (key, value) {
                 this.dictionary[key].value = value;
                 this.dictionary[key].boundTo.value = value;
                 this.dictionary[key].boundTo.onchange({
@@ -52,7 +56,7 @@
                 });
                 return value;
             };
-            return PropertyBindSupport;
+            return propertyBindSupport;
         },
         dependencies: ["EventBus"],
         singleton: true

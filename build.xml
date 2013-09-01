@@ -10,7 +10,7 @@
              classpath="${basedir}/build/jslint/jslint4java-2.0.5.jar" />
 
     <target name="check-js">
-        <jslint options="sloppy,nomen,plusplus,browser">
+        <jslint options="sloppy,nomen,plusplus,browser,unparam">
             <formatter type="plain" />
             <fileset dir="js" includes="**/*.js" excludes="lib/**/*.js" />
         </jslint>
@@ -18,7 +18,7 @@
 
     <target name="concat-js" depends="check-js">
         <concat destfile="allat.js" encoding="UTF-8" outputencoding="UTF-8" fixlastline="true">
-            <filelist dir="js" files="config.js,util.js,bootstrap.js" />
+            <filelist dir="js" files="config.js,polyfill.js,bootstrap.js" />
             <fileset dir="js" includes="modules/*.js" excludes="modules/bootmodule.js" />
             <filelist dir="js" files="modules/bootmodule.js" />
         </concat>

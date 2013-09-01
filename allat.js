@@ -13,6 +13,16 @@ root.Allat = {};
         }
         return keys;
     };
+    Array.prototype.forEach = Array.prototype.forEach || function (fn, scope) {
+        'use strict';
+        var i, len = this.length;
+        for (i = 0; i < len; ++i) {
+            if (!!this[i]) {
+                fn.call(scope, this[i], i, this);
+            }
+        }
+    };
+
 }());
 /*global Allat */
 (function (Allat) {
@@ -160,6 +170,31 @@ root.Allat = {};
     }
     util.proxy = proxy;
 
+    /**
+     * Utility method to convert anything array like to valid array.
+     * @param obj
+     * @returns {Array}
+     */
+    function makeArray(obj) {
+        var arr = [], i, ref;
+        for (i = 0, ref = arr.length = obj.length; i < ref; i++) {
+            arr[i] = obj[i];
+        }
+        return arr;
+    }
+    util.makeArray = makeArray;
+
+    /**
+     * Utility function to escape characters which are special in html, like .,',",<,> and /
+     * @param {string} str
+     * @returns {string}
+     */
+    function escape(str) {
+        str = str.replace(/[\.'"<>\/]/g, "");
+        return str;
+    }
+    util.escape = escape;
+
     Allat.util = util;
 }(Allat));
 /*global Allat */
@@ -246,12 +281,24 @@ root.Allat = {};
 /*global Allat */
 (function (Allat) {
     Allat.module.define("PropertyBindSupport", {
-        factory: function (PropertyBindSupport) {
-            PropertyBindSupport.init = function() {
+        factory: function (propertyBindSupport) {
+            propertyBindSupport.init = function() {
+                var p = Allat.util.proxy;
+                this.dictionary = {};
+                this.parsePage();
+                /*jslint unparam: true*/
+                this.services.EventBus.subscribe("property.set", p(function (event, data) {
+                    if (this.resolve(data.key)) {
+                        this.update(data.key, data.value);
+                    }
+                }, this));
+                /*jslint unparam: false*/
+            };
+            propertyBindSupport.parsePage = function () {
                 var template, i, boundTo, key, p = Allat.util.proxy,
                     createChangeHandler = p(function(key, template) {
                         return p(function (e) {
-                            var value = e.target.value;
+                            var value = Allat.util.escape(e.target.value);
                             this.dictionary[key] = {
                                 template: template,
                                 boundTo: e.target,
@@ -264,7 +311,6 @@ root.Allat = {};
                             });
                         }, this);
                     }, this);
-                this.dictionary = {};
                 this.templates = document.getElementsByClassName("bind");
                 for (i = 0; i < this.templates.length; i++) {
                     template = this.templates[i];
@@ -278,18 +324,11 @@ root.Allat = {};
                         });
                     }
                 }
-                /*jslint unparam: true*/
-                this.services.EventBus.subscribe("property.set", p(function (event, data) {
-                    if (this.resolve(data.key)) {
-                        this.update(data.key, data.value);
-                    }
-                }, this));
-                /*jslint unparam: false*/
             };
-            PropertyBindSupport.resolve = function (key) {
+            propertyBindSupport.resolve = function (key) {
                 return this.dictionary[key].value;
             };
-            PropertyBindSupport.update = function (key, value) {
+            propertyBindSupport.update = function (key, value) {
                 this.dictionary[key].value = value;
                 this.dictionary[key].boundTo.value = value;
                 this.dictionary[key].boundTo.onchange({
@@ -297,7 +336,7 @@ root.Allat = {};
                 });
                 return value;
             };
-            return PropertyBindSupport;
+            return propertyBindSupport;
         },
         dependencies: ["EventBus"],
         singleton: true

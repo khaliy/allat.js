@@ -144,5 +144,30 @@
     }
     util.proxy = proxy;
 
+    /**
+     * Utility method to convert anything array like to valid array.
+     * @param obj
+     * @returns {Array}
+     */
+    function makeArray(obj) {
+        var arr = [], i, ref;
+        for (i = 0, ref = arr.length = obj.length; i < ref; i++) {
+            arr[i] = obj[i];
+        }
+        return arr;
+    }
+    util.makeArray = makeArray;
+
+    /**
+     * Utility function to escape characters which are special in html, like .,',",<,> and /
+     * @param {string} str
+     * @returns {string}
+     */
+    function escape(str) {
+        str = str.replace(/[\.'"<>\/]/g, "");
+        return str;
+    }
+    util.escape = escape;
+
     Allat.util = util;
 }(Allat));

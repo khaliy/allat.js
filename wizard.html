@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html xmlns="http://www.w3.org/1999/html">
     <head>
         <title>Allat.js</title>
     </head>
@@ -9,6 +9,8 @@
             <input type="text" placeholder="Put your name here" id="username" name="name" />
             <p>
                 Hello <span class="bind" data-bind="username"></span>!
+                <template>Hello2 {username}</template>
+                <template>Hello3 {username}</template>
             </p>
         </div>
         <script src="allat.js" type="text/javascript"></script>
