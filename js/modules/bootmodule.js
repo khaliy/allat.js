@@ -16,15 +16,18 @@
             };
         };
     }
-    Allat.module.define("BootModule", function (BootModule) {
-        BootModule.init = function() {
-            $(Allat.util.proxy(function () {
-                this.services.EventBus.fireEvent("load");
-            }, this));
-        };
-        return BootModule;
-    }, ["EventBus"], true);
-    Allat.module.loaded("EventBus", function() {
-        Allat.module.instantiate("BootModule");
+    Allat.module.define("BootModule", {
+        factory: function (BootModule) {
+            BootModule.init = function() {
+                $(Allat.util.proxy(function () {
+                    this.services.EventBus.fireEvent("load");
+                }, this));
+            };
+            return BootModule;
+        },
+        dependencies: ["EventBus"],
+        singleton: true
     });
+
+    Allat.module.instantiate("BootModule");
 }(Allat));

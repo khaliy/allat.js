@@ -50,12 +50,6 @@
     ModuleSupport._singletons = {};
 
     /**
-     * Map to watch modules already loaded
-     * @type Object.<String,function>
-     */
-    ModuleSupport._watches = {};
-
-    /**
      * Default factory implementation for Modules
      * @returns {DefaultModule}
      */
@@ -105,12 +99,14 @@
     ModuleSupport.inject = inject;
     /**
      * @param {string} name Module's name
-     * @param {function(DefaultModule):DefaultModule} factory Factory object to create the module
-     * @param {Array=} dependencies list of other _modules to be injected as _singletons
-     * @param {Boolean=} singleton if true only one instance will be created
+     * @param {{factory:function, dependencies:Array, singleton:Boolean}} options object
      */
-    function define(name, factory, dependencies, singleton) {
-        var keys, key, modules, l, i, module, m, j;
+    function define(name, options) {
+        var factory, dependencies, singleton;
+        factory = options.factory || function (obj) {return obj; };
+        dependencies = options.dependencies || [];
+        singleton = options.singleton || false;
+
         if (!ModuleSupport._modules[name]) {
             ModuleSupport._modules[name] = {
                 build: function () {
@@ -120,35 +116,9 @@
                 singleton: singleton
             };
         }
-        keys = Object.getKeys(ModuleSupport._watches);
-        l = keys.length;
-        to: for (i = 0; i < l; i++) {
-            key = keys[i];
-            modules = key.split(/[\s,]/);
-            m = modules.length;
-            for (j = 0; j < m; j++) {
-                module = modules[j];
-                if (!ModuleSupport._modules[module]) {
-                    break to;
-                }
-            }
-            ModuleSupport._watches[key]();
-            delete ModuleSupport._watches[key];
-        }
     }
 
     ModuleSupport.define = define;
-
-    /**
-     * Delay a logic after a module is defined
-     * @param {string} modules names of modules to wait for
-     * @param {function} callback the logic
-     */
-    function loaded(modules, callback) {
-        ModuleSupport._watches[modules] = callback;
-    }
-
-    ModuleSupport.loaded = loaded;
 
     Allat.module = ModuleSupport;
 

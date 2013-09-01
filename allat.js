@@ -3,7 +3,6 @@ if (root.Allat) {
     throw new Error("Allat.js is already initialized.");
 }
 root.Allat = {};
-
 (function () {
     Object.getKeys = Object.getKeys || function (obj) {
         var keys = [], key;
@@ -15,7 +14,6 @@ root.Allat = {};
         return keys;
     };
 }());
-
 /*global Allat */
 (function (Allat) {
 
@@ -56,12 +54,14 @@ root.Allat = {};
     /**
      * Map to hold name of the modules and their factory methods
      * @type Object.<String,Object>
+     * @private
      */
     ModuleSupport._modules = {};
 
     /**
      * Map to hold singleton instances of singleton services to reuse
      * @type Object.<String,DefaultModule>
+     * @private
      */
     ModuleSupport._singletons = {};
 
@@ -115,11 +115,14 @@ root.Allat = {};
     ModuleSupport.inject = inject;
     /**
      * @param {string} name Module's name
-     * @param {function(DefaultModule):DefaultModule} factory Factory object to create the module
-     * @param {Array=} dependencies list of other _modules to be injected as _singletons
-     * @param {Boolean=} singleton if true only one instance will be created
+     * @param {{factory:function, dependencies:Array, singleton:Boolean}} options object
      */
-    function define(name, factory, dependencies, singleton) {
+    function define(name, options) {
+        var factory, dependencies, singleton;
+        factory = options.factory || function (obj) {return obj; };
+        dependencies = options.dependencies || [];
+        singleton = options.singleton || false;
+
         if (!ModuleSupport._modules[name]) {
             ModuleSupport._modules[name] = {
                 build: function () {
@@ -159,7 +162,213 @@ root.Allat = {};
 
     Allat.util = util;
 }(Allat));
+/*global Allat */
+(function (Allat) {
+    Allat.module.define("EventBus", {
+        factory: function (EventBus) {
+            EventBus.init = function () {
+                this._subscribers = this.services.MapSupport.createMap();
+            };
+            /**
+             * @param {String} event
+             * @param {function} handler
+             */
+            EventBus.subscribe = function (event, handler) {
+                this._subscribers.add(event, handler);
+            };
+            EventBus.unSubscribe = function (event, handler) {
+                this._subscribers.remove(event, handler);
+            };
+            EventBus.fireEvent = function (event, data) {
+                var handlers = this._subscribers.getValues(event), i;
+                if (!handlers || !handlers.length) {
+                    return;
+                }
+                for (i = 0; i < handlers.length; i++) {
+                    if (handlers[i](event, data)) {
+                        break;
+                    }
+                }
+            };
+            return EventBus;
+        },
+        dependencies: ["MapSupport"],
+        singleton: true
+    });
+}(Allat));
+/*global Allat */
+(function (Allat) {
+    Allat.module.define("MapSupport", {
+        factory: function (MapSupport) {
+            var Map = function () {
+                this._map = {};
+            };
 
+            Map.prototype.add = function (key, value) {
+                var values = this._map[key] || [];
+                values.push(value);
+                this._map[key] = values;
+            };
+            Map.prototype.remove = function (key, value) {
+                var values = this._map[key], i;
+                for (i = 0; i < values.length; i++) {
+                    if (value === values[i]) {
+                        this._map[key] = values.splice(i, 1);
+                        break;
+                    }
+                }
+                return value;
+            };
+            Map.prototype.contains = function (key, value) {
+                var values = this._map[key], i;
+                for (i = 0; i < values.length; i++) {
+                    if (value === values[i]) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+            Map.prototype.getValues = function (key) {
+                return this._map[key];
+            };
+            Map.prototype.getKeys = function () {
+                return Object.getKeys(this._map);
+            };
+
+            MapSupport.createMap = function () {
+                return new Map();
+            };
+            return MapSupport;
+        },
+        singleton: true
+    });
+}(Allat));
+/*global Allat */
+(function (Allat) {
+    Allat.module.define("PropertyBindSupport", {
+        factory: function (PropertyBindSupport) {
+            PropertyBindSupport.init = function() {
+                var template, i, boundTo, key, p = Allat.util.proxy,
+                    createChangeHandler = p(function(key, template) {
+                        return p(function (e) {
+                            var value = e.target.value;
+                            this.dictionary[key] = {
+                                template: template,
+                                boundTo: e.target,
+                                value: value
+                            };
+                            template.innerHTML = value;
+                            this.services.EventBus.fireEvent("property.updated", {
+                                key: key,
+                                value: value
+                            });
+                        }, this);
+                    }, this);
+                this.dictionary = {};
+                this.templates = document.getElementsByClassName("bind");
+                for (i = 0; i < this.templates.length; i++) {
+                    template = this.templates[i];
+                    if (template.attributes["data-bind"]) {
+                        key = template.attributes["data-bind"].value;
+                        boundTo = document.getElementById(key);
+                        boundTo.onchange = createChangeHandler(key, template);
+                        boundTo.onkeyup = boundTo.onchange;
+                        boundTo.onchange({
+                            target: boundTo
+                        });
+                    }
+                }
+                /*jslint unparam: true*/
+                this.services.EventBus.subscribe("property.set", p(function (event, data) {
+                    if (this.resolve(data.key)) {
+                        this.update(data.key, data.value);
+                    }
+                }, this));
+                /*jslint unparam: false*/
+            };
+            PropertyBindSupport.resolve = function (key) {
+                return this.dictionary[key].value;
+            };
+            PropertyBindSupport.update = function (key, value) {
+                this.dictionary[key].value = value;
+                this.dictionary[key].boundTo.value = value;
+                this.dictionary[key].boundTo.onchange({
+                    target: this.dictionary[key].boundTo
+                });
+                return value;
+            };
+            return PropertyBindSupport;
+        },
+        dependencies: ["EventBus"],
+        singleton: true
+    });
+}(Allat));
+/*global root,Allat */
+(function (Allat) {
+    Allat.module.define("TemplateSupport", {
+        factory: function (TemplateSupport) {
+
+            function addSimpleTemplate() {
+                var SimpleTemplate = {
+                    render: function (template, data) {
+                        var keys = Object.getKeys(data), l = keys.length, i, regex;
+                        for (i = 0; i < l; i++) {
+                            regex = new RegExp("{" + keys[i] + "}", "g");
+                            template = template.replace(regex, data[keys[i]]);
+                        }
+                        return template;
+                    }
+                };
+                TemplateSupport.addEngine("SimpleTemplate", {
+                    engine: SimpleTemplate,
+                    renderFn: function (template, data) {
+                        return SimpleTemplate.render(template, data);
+                    }
+                });
+            }
+
+            function detectTemplateSystems() {
+                var engines = {
+                    Mustache: function (template, data) {
+                        return root.Mustache.render(template, data);
+                    }
+                }, keys = Object.getKeys(engines), l = keys.length, i, engine, renderFn;
+                for (i = 0; i < l; i++) {
+                    engine = keys[i];
+                    renderFn = engines[engine];
+                    if (Object.prototype.hasOwnProperty.call(root, engine)) {
+                        TemplateSupport.addEngine(engine, {
+                            engine: root[engine],
+                            renderFn: renderFn
+                        });
+                    }
+                }
+            }
+
+            TemplateSupport.init = function() {
+                addSimpleTemplate();
+                detectTemplateSystems();
+            };
+
+            TemplateSupport.addEngine = function(name, engineDef) {
+                TemplateSupport.ENGINES[name] = engineDef;
+                this.setEngine(name);
+            };
+            TemplateSupport.setEngine = function(name) {
+                this.engine = TemplateSupport.ENGINES[name];
+            };
+
+            TemplateSupport.render = function (template, data) {
+                return this.engine.renderFn(template, data);
+            };
+
+            TemplateSupport.ENGINES = {};
+
+            return TemplateSupport;
+        },
+        singleton: true
+    });
+}(Allat));
 /*global root,Allat */
 (function (Allat) {
     var $, prevHandler;
@@ -178,209 +387,18 @@ root.Allat = {};
             };
         };
     }
-    Allat.module.define("BootModule", function (BootModule) {
-        BootModule.init = function() {
-            $(Allat.util.proxy(function () {
-                this.services.EventBus.fireEvent("load");
-            }, this));
-        };
-        return BootModule;
-    }, ["EventBus"], true);
+    Allat.module.define("BootModule", {
+        factory: function (BootModule) {
+            BootModule.init = function() {
+                $(Allat.util.proxy(function () {
+                    this.services.EventBus.fireEvent("load");
+                }, this));
+            };
+            return BootModule;
+        },
+        dependencies: ["EventBus"],
+        singleton: true
+    });
+
     Allat.module.instantiate("BootModule");
 }(Allat));
-/*global Allat */
-(function (Allat) {
-    Allat.module.define("EventBus", function (EventBus) {
-
-        EventBus.init = function () {
-            this._subscribers = this.services.MapSupport.createMap();
-        };
-        /**
-         * @param {String} event
-         * @param {function} handler
-         */
-        EventBus.subscribe = function (event, handler) {
-            this._subscribers.add(event, handler);
-        };
-        EventBus.unSubscribe = function (event, handler) {
-            this._subscribers.remove(event, handler);
-        };
-        EventBus.fireEvent = function (event, data) {
-            var handlers = this._subscribers.getValues(event), i;
-            if (!handlers || !handlers.length) {
-                return;
-            }
-            for (i = 0; i < handlers.length; i++) {
-                if (handlers[i](event, data)) {
-                    break;
-                }
-            }
-        };
-        return EventBus;
-    }, ["MapSupport"], true);
-}(Allat));
-/*global Allat */
-(function (Allat) {
-    Allat.module.define("MapSupport", function (MapSupport) {
-        var Map = function () {
-            this._map = {};
-        };
-
-        Map.prototype.add = function (key, value) {
-            var values = this._map[key] || [];
-            values.push(value);
-            this._map[key] = values;
-        };
-        Map.prototype.remove = function (key, value) {
-            var values = this._map[key], i;
-            for (i = 0; i < values.length; i++) {
-                if (value === values[i]) {
-                    this._map[key] = values.splice(i, 1);
-                    break;
-                }
-            }
-            return value;
-        };
-        Map.prototype.contains = function (key, value) {
-            var values = this._map[key], i;
-            for (i = 0; i < values.length; i++) {
-                if (value === values[i]) {
-                    return true;
-                }
-            }
-            return false;
-        };
-        Map.prototype.getValues = function (key) {
-            return this._map[key];
-        };
-        Map.prototype.getKeys = function () {
-            return Object.getKeys(this._map);
-        };
-
-        MapSupport.createMap = function () {
-            return new Map();
-        };
-        return MapSupport;
-    }, [], true);
-}(Allat));
-
-/*global Allat */
-(function (Allat) {
-    Allat.module.define("PropertyBindSupport", function (PropertyBindSupport) {
-        PropertyBindSupport.init = function() {
-            var template, i, boundTo, key, p = Allat.util.proxy,
-                createChangeHandler = p(function(key, template) {
-                    return p(function (e) {
-                        var value = e.target.value;
-                        this.dictionary[key] = {
-                            template: template,
-                            boundTo: e.target,
-                            value: value
-                        };
-                        template.innerHTML = value;
-                        this.services.EventBus.fireEvent("property.updated", {
-                            key: key,
-                            value: value
-                        });
-                    }, this);
-                }, this);
-            this.dictionary = {};
-            this.templates = document.getElementsByClassName("bind");
-            for (i = 0; i < this.templates.length; i++) {
-                template = this.templates[i];
-                if (template.attributes["data-bind"]) {
-                    key = template.attributes["data-bind"].value;
-                    boundTo = document.getElementById(key);
-                    boundTo.onchange = createChangeHandler(key, template);
-                    boundTo.onkeyup = boundTo.onchange;
-                    boundTo.onchange({
-                        target: boundTo
-                    });
-                }
-            }
-            /*jslint unparam: true*/
-            this.services.EventBus.subscribe("property.set", p(function (event, data) {
-                if (this.resolve(data.key)) {
-                    this.update(data.key, data.value);
-                }
-            }, this));
-            /*jslint unparam: false*/
-        };
-        PropertyBindSupport.resolve = function (key) {
-            return this.dictionary[key].value;
-        };
-        PropertyBindSupport.update = function (key, value) {
-            this.dictionary[key].value = value;
-            this.dictionary[key].boundTo.value = value;
-            this.dictionary[key].boundTo.onchange({
-                target: this.dictionary[key].boundTo
-            });
-            return value;
-        };
-        return PropertyBindSupport;
-    }, ["EventBus"], true);
-}(Allat));
-/*global root,Allat */
-(function (Allat) {
-    Allat.module.define("TemplateSupport", function (TemplateSupport) {
-
-        function addSimpleTemplate() {
-            var SimpleTemplate = {
-                render: function (template, data) {
-                    var keys = Object.getKeys(data), l = keys.length, i, regex;
-                    for (i = 0; i < l; i++) {
-                        regex = new RegExp("{" + keys[i] + "}", "g");
-                        template = template.replace(regex, data[keys[i]]);
-                    }
-                    return template;
-                }
-            };
-            TemplateSupport.addEngine("SimpleTemplate", {
-                engine: SimpleTemplate,
-                renderFn: function (template, data) {
-                    return SimpleTemplate.render(template, data);
-                }
-            });
-        }
-
-        function detectTemplateSystems() {
-            var engines = {
-                Mustache: function (template, data) {
-                    return root.Mustache.render(template, data);
-                }
-            }, keys = Object.getKeys(engines), l = keys.length, i, engine, renderFn;
-            for (i = 0; i < l; i++) {
-                engine = keys[i];
-                renderFn = engines[engine];
-                if (Object.prototype.hasOwnProperty.call(root, engine)) {
-                    TemplateSupport.addEngine(engine, {
-                        engine: root[engine],
-                        renderFn: renderFn
-                    });
-                }
-            }
-        }
-
-        TemplateSupport.init = function() {
-            addSimpleTemplate();
-            detectTemplateSystems();
-        };
-
-        TemplateSupport.addEngine = function(name, engineDef) {
-            TemplateSupport.ENGINES[name] = engineDef;
-            this.setEngine(name);
-        };
-        TemplateSupport.setEngine = function(name) {
-            this.engine = TemplateSupport.ENGINES[name];
-        };
-
-        TemplateSupport.render = function (template, data) {
-            return this.engine.renderFn(template, data);
-        };
-
-        TemplateSupport.ENGINES = {};
-
-        return TemplateSupport;
-    }, [], true);
-}(Allat));
-

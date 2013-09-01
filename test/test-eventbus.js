@@ -8,21 +8,27 @@ test("EventBus exist", function() {
     equal(EventBus.getName(), "EventBus", "Its an EventBus");
 });
 test("Producer and Consumer", function () {
-    Allat.module.define("Producer", function (Producer) {
-        Producer.counter = 0;
-        Producer.produce = function () {
-            this.services.EventBus.fireEvent("counter", ++this.counter);
-        };
-        return Producer;
-    },["EventBus"]);
-    Allat.module.define("Consumer", function (Consumer) {
-        Consumer.init = function () {
-            this.services.EventBus.subscribe("counter", function (event, data) {
-                Consumer.counter = data;
-            });
-        };
-        return Consumer;
-    },["EventBus"]);
+    Allat.module.define("producer", {
+        factory: function (producer) {
+            producer.counter = 0;
+            producer.produce = function () {
+                this.services.EventBus.fireEvent("counter", ++this.counter);
+            };
+            return producer;
+        },
+        dependencies: ["EventBus"]
+    });
+    Allat.module.define("Consumer", {
+        factory: function (consumer) {
+            consumer.init = function () {
+                this.services.EventBus.subscribe("counter", function (event, data) {
+                    consumer.counter = data;
+                });
+            };
+            return consumer;
+        },
+        dependencies: ["EventBus"]
+    });
     var Producer = Allat.module.instantiate("Producer"),
         Consumer = Allat.module.instantiate("Consumer");
     Producer.produce();
